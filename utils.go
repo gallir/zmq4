@@ -29,54 +29,55 @@ func (soc *Socket) sendMessage(dontwait Flag, parts ...interface{}) (total int, 
 	// TODO: make this faster
 	// Done, ;)
 	var partial int
-	last0 := len(parts) - 1
+
+	// Pop the last empty slices
+popempty:
+	for i := len(parts) - 1; i >= 0; i-- {
+		switch tLast := parts[i].(type) {
+		case []string:
+			if len(tLast) > 0 {
+				break popempty // A non empty slice, stop
+			}
+		case [][]byte:
+			if len(tLast) > 0 {
+				break popempty // A non empty slice, stop
+			}
+		default:
+			break popempty // Empty strings must be sent, stop
+		}
+		parts = parts[:len(parts)-1]
+	}
+
 	opt := SNDMORE | dontwait
+	last0 := len(parts) - 1 // The last index, just to shorten the comparison
 	for i0, p0 := range parts {
 		switch t0 := p0.(type) {
 		case []string:
 			last1 := len(t0) - 1
-			if last1 < 0 && i0 == last0 {
-				// A bug in the program?, kept for compatibility of the
-				// previous version.
-				// The program has sent an empty slice as last
-				// argument. Force to send the message with no SNDMORE.
-				// I'm (gallir) not sure if must be sent also a zero sized byte
-				// array for intermediate empty slices
-				partial, err = soc.sendSinglePart(dontwait, []byte{})
-				total += partial
-			} else {
-				for i1, p1 := range t0 {
-					if i0 == last0 && i1 == last1 {
-						opt = dontwait
-					}
-					partial, err = soc.sendSinglePart(opt, p1)
-					if err != nil {
-						break // Don't continue
-					}
-					total += partial
+			for i1, p1 := range t0 {
+				if i0 == last0 && i1 == last1 {
+					opt = dontwait
 				}
+				partial, err = soc.sendSinglePart(opt, p1)
+				if err != nil {
+					break // Don't continue
+				}
+				total += partial
 			}
 			if err != nil {
 				return -1, err
 			}
-
 		case [][]byte:
 			last1 := len(t0) - 1
-			if last1 < 0 && i0 == last0 {
-				// A bug in the program, see above comment..
-				partial, err = soc.sendSinglePart(dontwait, []byte{})
-				total += partial
-			} else {
-				for i1, p1 := range t0 {
-					if i0 >= last0 && i1 >= last1 {
-						opt = dontwait
-					}
-					partial, err = soc.sendSinglePart(opt, p1)
-					if err != nil {
-						break // Don't continue
-					}
-					total += partial
+			for i1, p1 := range t0 {
+				if i0 >= last0 && i1 >= last1 {
+					opt = dontwait
 				}
+				partial, err = soc.sendSinglePart(opt, p1)
+				if err != nil {
+					break // Don't continue
+				}
+				total += partial
 			}
 			if err != nil {
 				return -1, err
